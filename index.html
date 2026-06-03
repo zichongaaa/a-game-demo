@@ -15,7 +15,7 @@
 </head>
 <body>
 <div class="wrap">
-<header><div><h1>电竞选手养成模拟器 v19</h1><p class="subtitle">清融只能在中路队友随机/单独roll时以约10%概率出现；关系剧情加入队列，比赛结算后仍会弹出。</p></div><div class="pill">单文件版 · 保存为 index.html 可运行</div></header>
+<header><div><h1>电竞选手养成模拟器 v21</h1><p class="subtitle">稀有队友清融/今屿只能通过对应位置随机 roll 出；关系剧情加入队列，比赛结算后仍会弹出。</p></div><div class="pill">单文件版 · 保存为 index.html 可运行</div></header>
 <section id="setup" class="grid">
   <div class="card"><h2>1. 创建选手</h2><p class="muted">主角恢复五维可视化。开局自由点数用于单独加五维；后续养成暂时仍加综合分，五维细分养成以后再设计。</p><div class="row"><div class="field"><label>选手名</label><input id="playerName" maxlength="5" value="新人"/></div><div class="field"><label>分路</label><select id="role"><option>对抗路</option><option>打野</option><option>中路</option><option>发育路</option><option>游走</option></select></div><div class="field"><label>自由点数</label><select id="freePts"><option value="0">0</option><option value="5" selected>5</option><option value="10">10</option></select></div></div><div class="subcard" style="margin-top:12px"><div class="choiceTitle"><div><b>主角五维与综合分</b><div class="small muted">五维初始均为 55。综合分由五维平均得到，后续训练会先暂时直接加综合分。</div></div><div class="big" id="playerBasePreview">55</div></div><div id="setupAttrPanel" class="attrGrid"></div><div class="row" style="margin-top:10px"><button id="resetPointBtn" class="ghost">重置加点</button><span class="muted small">剩余点数：<b id="leftPts">5</b></span></div></div><div class="notice small" style="margin-top:12px">压力惩罚：压力 &gt;50 综合分×0.9；&gt;80 ×0.8；&gt;90 ×0.6；到 100 触发跑路/崩盘结局。连续两轮有效养成不足会出现比赛分惩罚。</div><div class="footerBtns"><button id="genTeamBtn">生成队友</button><button id="startBtn" class="goodbtn" disabled>进入养成</button><button class="ghost" onclick="loadGame()">读取存档</button></div></div>
   <div class="card"><h2>2. 队伍预览</h2><p class="muted small">队友恢复五维、词条和改名功能。综合分仍作为主要比赛数值。</p><div id="teamPreview" class="team"></div></div>
@@ -54,6 +54,7 @@ function traitFor(a,v){const high={mechanics:'手法细腻',sense:'节奏清晰'
 function buildTraits(attrs,base){let sorted=ATTRS.map(a=>({a,v:attrs?.[a]??55})).sort((x,y)=>y.v-x.v);let arr=[traitFor(sorted[0].a,sorted[0].v),traitFor(sorted[sorted.length-1].a,sorted[sorted.length-1].v)];if(base>=66)arr.push('潜力核心');if(base<=54)arr.push('需要保护');return [...new Set(arr)].slice(0,3)}
 let state={player:{name:'新人',role:'对抗路',attrs:makeAttrs(55),base:55,free:5,used:0,pressure:20},team:[],teamPressure:20,money:35,fans:8000,fame:12,turn:1,turnsPerMatch:7,logs:[],girlfriend:null,gfCompanionThisCycle:0,pendingFanBomb:[],badEnd:false,developmentThisCycle:0,noDevWeeks:0,phase:'R1',group:'',phaseWins:0,phaseLosses:0,globalMatchNo:1,playoffStage:'',seasonEnd:false,matchInProgress:false,autoMatchPending:false,customMate:null,pendingStoryModals:[]};
 const QINGRONG_PRESET={id:'qingrong',name:'清融',role:'中路',attrs:makeAttrs(60),base:60,traits:['游龙清影','天才中单'],favor:0};
+const JINYU_PRESET={id:'jinyu',name:'今屿',role:'打野',attrs:makeAttrs(60),base:60,traits:['大方随和','经验型选手'],favor:0};
 function clonePresetMate(preset){return JSON.parse(JSON.stringify(preset))}
 function applyQingrongPreset(){state.customMate=clonePresetMate(QINGRONG_PRESET);addLog('已将清融设置为指定队友：中路｜综合 60｜词条：游龙清影、天才中单。');renderPreview();renderAll?.()}
 window.applyQingrongPreset=applyQingrongPreset;
@@ -97,11 +98,12 @@ window.openCustomMateModal=openCustomMateModal;window.saveCustomMate=saveCustomM
 function setupPreview(){state.player.base=calcOverall(state.player.attrs);$('playerBasePreview').textContent=state.player.base;$('leftPts').textContent=state.player.free-state.player.used;$('setupAttrPanel').innerHTML=attrHtml(state.player.attrs,true)}
 window.addAttrPoint=(attr)=>{if(state.player.used<state.player.free){state.player.attrs[attr]=clamp((state.player.attrs[attr]||55)+1,1,99);state.player.used++;setupPreview()}}
 $('freePts').onchange=()=>{state.player.free=Number($('freePts').value);state.player.used=0;state.player.attrs=makeAttrs(55);setupPreview()};$('resetPointBtn').onclick=()=>{state.player.used=0;state.player.attrs=makeAttrs(55);setupPreview()};
-function makeMate(role,i){if(role==='中路'&&Math.random()<0.10){let q=clonePresetMate(QINGRONG_PRESET);q.role='中路';q.favor=0;q.cpFans=0;q.soloFans=rand(6000,16000);q.interactedThisCycle=false;q.cpUnlocked=false;q.warTriggered=false;q.orientationDone=true;q.hintOff=true;q.storyEvents={};q.relationTitle='';return q}let nm=pick(baseNames);let attrs=randomAttrs(48,72);let base=calcOverall(attrs);return {id:'random',name:nm,role,attrs,base,traits:buildTraits(attrs,base),favor:0,cpFans:0,soloFans:rand(2000,9000),interactedThisCycle:false,cpUnlocked:false,warTriggered:false,orientationDone:true,hintOff:true,storyEvents:{},relationTitle:''}}
-function generateTeam(){const playerRole=$('role').value;let rs=roles.filter(r=>r!==playerRole);state.team=rs.map((r,i)=>makeMate(r,i));renderPreview();$('startBtn').disabled=false;if(state.team.some(m=>m.id==='qingrong'))addLog('你在本次队友随机中roll出了稀有中单队友清融。')}
-function rerollMate(i){if(!state.team[i])return;let role=state.team[i].role;state.team[i]=makeMate(role,i);renderPreview();addLog(state.team[i].id==='qingrong'?`你重新随机了${role}队友，roll出了稀有队友清融。`:`你重新随机了${role}队友。`)}window.rerollMate=rerollMate;
+function prepareRareMate(preset,role){let m=clonePresetMate(preset);m.role=role;m.favor=0;m.cpFans=0;m.soloFans=rand(6000,16000);m.interactedThisCycle=false;m.cpUnlocked=false;m.warTriggered=false;m.orientationDone=true;m.hintOff=true;m.storyEvents={};m.relationTitle='';return m}
+function makeMate(role,i){if(role==='中路'&&Math.random()<0.10)return prepareRareMate(QINGRONG_PRESET,'中路');if(role==='打野'&&Math.random()<0.10)return prepareRareMate(JINYU_PRESET,'打野');let nm=pick(baseNames);let attrs=randomAttrs(48,72);let base=calcOverall(attrs);return {id:'random',name:nm,role,attrs,base,traits:buildTraits(attrs,base),favor:0,cpFans:0,soloFans:rand(2000,9000),interactedThisCycle:false,cpUnlocked:false,warTriggered:false,orientationDone:true,hintOff:true,storyEvents:{},relationTitle:''}}
+function generateTeam(){const playerRole=$('role').value;let rs=roles.filter(r=>r!==playerRole);state.team=rs.map((r,i)=>makeMate(r,i));renderPreview();$('startBtn').disabled=false;let rare=state.team.filter(m=>m.id==='qingrong'||m.id==='jinyu').map(m=>m.name);if(rare.length)addLog('你在本次队友随机中roll出了稀有队友：'+rare.join('、')+'。')}
+function rerollMate(i){if(!state.team[i])return;let role=state.team[i].role;state.team[i]=makeMate(role,i);renderPreview();addLog((state.team[i].id==='qingrong'||state.team[i].id==='jinyu')?`你重新随机了${role}队友，roll出了稀有队友${state.team[i].name}。`:`你重新随机了${role}队友。`)}window.rerollMate=rerollMate;
 function updateMateName(i,val){if(state.team[i]){state.team[i].name=(val||`队友${i+1}`).slice(0,5);renderPreview();renderRelations()}}window.updateMateName=updateMateName;
-function renderPreview(){const box=$('teamPreview');box.innerHTML=`<div class="subcard" style="grid-column:1/-1"><span class="muted small">稀有队友机制：中路队友随机/单独roll时，有约10%概率出现清融。清融不可手动指定。</span></div>`+state.team.map((m,i)=>`<div class="mate"><div class="mate-head"><div><div class="role">${m.role}</div><input class="nameMini" maxlength="5" value="${m.name}" onchange="updateMateName(${i},this.value)"/></div><div class="big">${m.base}</div></div><div class="attrGrid">${attrHtml(m.attrs,false)}</div><div class="tags">${(m.traits||buildTraits(m.attrs,m.base)).map(t=>`<span class="tag">${t}</span>`).join('')}${m.id==='qingrong'?`<span class="tag warnTag">稀有队友</span>`:''}</div><div class="footerBtns"><button class="ghost full" onclick="rerollMate(${i})">单独重随机这名队友</button></div></div>`).join('')}
+function renderPreview(){const box=$('teamPreview');box.innerHTML=`<div class="subcard" style="grid-column:1/-1"><span class="muted small">稀有队友机制：中路队友约10%概率出现清融，打野队友约10%概率出现今屿；都只能随机/单独 roll 出，不能手动指定。</span></div>`+state.team.map((m,i)=>`<div class="mate"><div class="mate-head"><div><div class="role">${m.role}</div><input class="nameMini" maxlength="5" value="${m.name}" onchange="updateMateName(${i},this.value)"/></div><div class="big">${m.base}</div></div><div class="attrGrid">${attrHtml(m.attrs,false)}</div><div class="tags">${(m.traits||buildTraits(m.attrs,m.base)).map(t=>`<span class="tag">${t}</span>`).join('')}${(m.id==='qingrong'||m.id==='jinyu')?`<span class="tag warnTag">稀有队友</span>`:''}</div><div class="footerBtns"><button class="ghost full" onclick="rerollMate(${i})">单独重随机这名队友</button></div></div>`).join('')}
 $('genTeamBtn').onclick=generateTeam;$('startBtn').onclick=()=>{state.player.name=($('playerName').value||'新人').slice(0,5);state.player.role=$('role').value;state.player.base=calcOverall(state.player.attrs);$('setup').classList.add('hidden');$('game').classList.remove('hidden');addLog('赛季开始。第一轮常规赛 5 场，根据胜场进入 B/A/S 组。');renderAll()};
 function phaseName(){if(state.phase==='R1')return '常规赛第一轮';if(state.phase==='R2')return `常规赛第二轮 ${state.group}组`;if(state.phase==='TIE')return cardName(state.playoffStage||state.tiebreaker);if(state.phase==='R3')return `常规赛第三轮 ${state.group}组`;if(state.phase==='PLAYIN')return '季后赛预赛';if(state.phase==='PO')return playoffName(state.playoffStage);if(state.phase==='ELIM')return '淘汰结局';if(state.phase==='CHAMP')return '冠军结局';if(state.phase==='RUNNER')return '亚军结局';return state.phase}
 function cardName(t){return {BA:'BA卡位赛：B冲A',AB:'AB卡位赛：A组保命',AS:'AS卡位赛：A冲S',SA:'SA卡位赛：S组保位'}[t]||'卡位赛'}
@@ -136,11 +138,20 @@ window.mateAction=(type,i)=>{closeModal();let m=state.team[i];m.interactedThisCy
 function gainFavor(m,n){let real=n;if(m.favor>=50)real=Math.max(4,Math.floor(n*.75));m.favor=clamp(m.favor+real,0,100);if(m.favor>=20&&!m.cpUnlocked){m.cpUnlocked=true;m.cpFans+=2000;changeFans(1000);addLog(`你和${m.name}开始出现 CP 词条。CP粉增加。`)}triggerCustomMateStory(m);return real}
 
 function triggerCustomMateStory(m){
-  if(m.id!=='qingrong')return;
+  if(m.id==='qingrong')return triggerQingrongStory(m);
+  if(m.id==='jinyu')return triggerJinyuStory(m);
+}
+function triggerQingrongStory(m){
   m.storyEvents=m.storyEvents||{};
   if(m.favor>=20&&!m.storyEvents.e20){m.storyEvents.e20=true;m.relationTitle='夜宵搭子';m.cpFans+=1200;changeFans(800);changeFame(2);state.player.pressure=clamp(state.player.pressure-8,0,100);showQingrongEvent(20)}
   if(m.favor>=50&&!m.storyEvents.e50){m.storyEvents.e50=true;m.warTriggered=true;m.relationTitle='内部人脉';m.cpFans+=2500;changeFans(1500);changeFame(4);showQingrongEvent(50)}
   if(m.favor>=100&&!m.storyEvents.e100){m.storyEvents.e100=true;m.relationTitle='冠军约定';state.player.pressure=clamp(state.player.pressure-20,0,100);state.teamPressure=clamp(state.teamPressure-8,0,100);state.player.base+=1;changeFame(3);showQingrongEvent(100)}
+}
+function triggerJinyuStory(m){
+  m.storyEvents=m.storyEvents||{};
+  if(m.favor>=20&&!m.storyEvents.e20){m.storyEvents.e20=true;m.relationTitle='染发搭子';m.cpFans+=1000;changeFans(800);changeFame(2);state.player.pressure=clamp(state.player.pressure-6,0,100);showJinyuEvent(20)}
+  if(m.favor>=50&&!m.storyEvents.e50){m.storyEvents.e50=true;m.warTriggered=true;m.relationTitle='复盘前辈';m.cpFans+=2200;changeFans(1300);changeFame(3);state.player.base+=1;showJinyuEvent(50)}
+  if(m.favor>=100&&!m.storyEvents.e100){m.storyEvents.e100=true;m.relationTitle='并肩追风';state.player.pressure=clamp(state.player.pressure-18,0,100);state.teamPressure=clamp(state.teamPressure-10,0,100);state.player.base+=1;changeFame(3);showJinyuEvent(100)}
 }
 function showQingrongEvent(level){
   if(level===20){queueStoryModal(`<h2>清融线｜夜宵与首播</h2><div class="notice small">好感达到 20，触发专属事件。关系词条变为【夜宵搭子】。</div><div style="margin-top:12px;white-space:normal">
@@ -210,9 +221,80 @@ function showQingrongEvent(level){
 <p>你听见他似乎笑了。</p>
 </div><p class="good">效果：主角压力 -20，队伍压力 -8，主角综合 +1，关系词条变为【冠军约定】。</p><button class="goodbtn full" onclick="closeModal();renderAll()">继续</button>`)}
 }
+ 
+function showJinyuEvent(level){
+  if(level===20){queueStoryModal(`<h2>今屿线｜新发色与染发事故</h2><div class="notice small">好感达到 20，触发专属事件。关系词条变为【染发搭子】。</div><div style="margin-top:12px;white-space:normal">
+<p>你们队内的打野又换新发色了。</p>
+<p>这次是什么……浅茶棕？据说上次是焦糖色，但他染的时候你还不在这个队伍，只看到了一点掉色的发根。</p>
+<p>你看不出两种颜色的差别。</p>
+<p>于是在打野顶着一头新的小棕毛回来的时候，你如实地给出了以上评价，对方大嘘，说你懂什么染发，下次我带你去染。</p>
+<p>没过两天，你们队多了一个杀马特发色的选手。</p>
+<p>你顶着一头死贵的毛幽怨地盯着罪魁祸首，对方笑得蜷成一个虾子扶着桌角发出一阵鹅鹅鹅的声音。</p>
+<p>路过的队友震悚地看看他又看看你，吹了个口哨，哟，整这么时尚。</p>
+<p>你无力地垂下手，看着已经走远的队友，还有仍然笑得整个人都在打摆子的打野，叹了口气。</p>
+<p>没事，今屿忍着笑安慰你，那个tony不是说了吗，不小心给你调错染剂了，这次算送你的，下次还能再染一次。</p>
+<p>呵呵，从一个杀马特变成另一个杀马特吗，你心中没有波动，努力牵起嘴角，露出一个笑来。</p>
+<p>下次给我染成黑的。</p>
+<p>那不亏了吗，他揽上你的肩膀，振振有词，黑的在哪都能染，我在宿舍都能给你染，买个那个二十块的老头老太太染膏，一下午就染回来了，你这头毛……可是花了……</p>
+<p>那下午就给我染回来，你打断他。</p>
+<p>你看看你，怎么不听人说完呢，今屿说，你知道你这头毛花了多少钱吗？</p>
+<p>知道，你说，我去看了那家店的团购价。</p>
+<p>非也，打野高深莫测地在你眼前晃了晃手指，我找的可是顶级发型师预约造型，团购价至少乘个三。</p>
+<p>卧槽，你吐出一句国骂，那你这个……也是？</p>
+<p>嗯哼，对方点点头。</p>
+<p>看在钱的份儿上，不对，看在对方愿意给你染回来的份儿上，你决定忍了，先顶着这个颜色打几轮再说吧。</p>
+<p>太亏了，太亏了，你每次洗头看见颜色掉了满地，就替今屿的钱肉痛。</p>
+</div><p class="good">效果：主角压力 -6，粉丝/知名度上升，关系词条变为【染发搭子】。</p><button class="goodbtn full" onclick="closeModal();renderAll()">继续</button>`)}
+  if(level===50){queueStoryModal(`<h2>今屿线｜复盘与前辈的玩笑</h2><div class="notice small">好感达到 50，触发专属事件。关系词条变为【复盘前辈】。</div><div style="margin-top:12px;white-space:normal">
+<p>除了染发，今屿也会请你吃饭或者喝奶茶——大部分是聚餐。</p>
+<p>他是个很随和的前辈，跟年纪小的选手相处起来一点架子都没有，如果不是偶尔刷到关于他的帖子，你也总是在打闹的时候忘记他比你大了好几岁。</p>
+<p>偶尔你看见他一个人在训练室里待着，不知道在干什么，透过门缝能看见他弓着腰低下头，整个身子压在电竞椅上，一丝不苟地擦着眼镜，发根已经长出来了短短一茬，随着电竞椅的晃动棕色刘海也一起一摆一摆地摇晃着，这样瘦削的背影总是把人衬托得有点脆弱，尽管你平时不会这样觉得。</p>
+<p>你最终也没有选择打扰，只有在这种时候你才会意识到对方似乎面对了一些你无法体味的重量，它们在你的世界蒙着层层叠叠的纱，你只是通过他的桥梁而初窥其峥嵘，尽管从踏上这条路的第一天你就知道它的存在，可你还是第一次如此近距离地感受它。</p>
+<p>当然，你的感伤只持续到下一次他逗你“我要抓人了”转头跑进对面野区为止。</p>
+<p>怎么有这么恶劣的人，你很愤怒地点对方的头像，听见对面电竞椅上没憋住的笑声。</p>
+<p>他少数露出严肃的表情，也许是在复盘的时候，因为经验丰富，他自然而然地接手了一部分的复盘工作，而又因为你是新人，也自然而然地在这种事情上要花费更多的时间去扣细节。</p>
+<p>所以他经常和你单独聊某一场对局，也不算什么正式的场合，可能只是说到哪里，就把回放调出来看，你常常因为一波兵线而和对方争论很久，他倒不生气，看讲不通，就会说，那你下次训练赛试试呗，你听他这样说，本来赌气的心情泄去一大半，讷讷地说你不是说不应该贪吗……</p>
+<p>他说我告诉你你下次不还是想贪，你自己试一下，死了，比赛的时候就不会贪了。</p>
+<p>好吧，你最后一点气也没了，挠挠头说我回去再想想……对方点点头，踢着桌子角转圈儿，说没事儿，都这么过来的，你心里认定这是一句他随口而出的安慰，因此随意答应了一声。</p>
+<p>真的，今屿说，我当年还因为类似的事儿吵哭过呢。</p>
+<p>是吗，你抬起头去看对方的眼睛，对方很认真地看着你，看你看过来，朝你眨眨眼。</p>
+<p>你努力去想象眼前的人年轻青涩，甚至因为一点细节委屈哭的样子，发现自己完全想象不出来，今屿看你愣神，猛地拍了拍你，大笑着把凳子踢远，说，逗你的，想啥呢。</p>
+<p>你还在萌芽处的一点共情被瞬间掐灭，只剩下被欺骗的愤怒。</p>
+<p>怎么有这么恶劣的人。</p>
+<p>不过后来你才知道，他确实没骗你，兵线是，流泪也是。</p>
+</div><p class="good">效果：主角综合 +1，CP粉、粉丝数和知名度上升，关系词条变为【复盘前辈】。</p><button class="goodbtn full" onclick="closeModal();renderAll()">继续</button>`)}
+  if(level===100){queueStoryModal(`<h2>今屿线｜河堤尽头</h2><div class="notice small">好感达到 100，触发满好感事件。关系词条变为【并肩追风】。</div><div style="margin-top:12px;white-space:normal">
+<p>你们的成绩不算很让人放心，不管是赛场上一次次惊险的胜利，还是互联网上关于“队伍上限”的讨论，你们的每一场失败的小局似乎都证明你们是个外强中干的“伪强队”，只需要一场酣畅淋漓的大败，就能击穿你们伪装出来的假象。</p>
+<p>在这样的外部环境中，队伍里的每一个人都像一根绷紧的弦，生怕自己的失误葬送了队伍一个赛季的努力。</p>
+<p>就在这样紧张的时刻，今屿突然问你要不要一起去逛公园。</p>
+<p>你不理解对方这份邀请的用意，但还是同意了，你们选择了基地附近的小公园，有一条河在其中穿行而过，似乎还可以游船。</p>
+<p>你们出发的时候刚好是傍晚，暮春的傍晚气温十分宜人，穿着队服外套不热也不冷，你之前染的头发颜色已经掉得差不多，只剩下枯草似的发梢随着微风在眼前一晃一晃，今屿的头发也差不多，和你刚见到他的时候类似，黑发蜿蜒着爬了很长，只有末尾一截儿棕色的小尾巴。</p>
+<p>你们肩并肩往前走，谁也没有先说话，终于，还是你沉不住气，问对方出来有什么事。</p>
+<p>今屿诧异地看看你，说，没事啊，没事不能出来吗？</p>
+<p>啊……你说，不是，我以为……</p>
+<p>以为这个时候应该回去训练，复盘，开会，备战，对方像点豆豆似的吐出一大堆听起来就让人头晕的名词，说完又笑了，真没事，我就是想出来走走，但我不想一个人。</p>
+<p>你似懂非懂地点点头，看见公园里柳树抽条，微风拂柳，河岸泛起片片涟漪，河岸边小孩骑着扭扭车一边尖叫一边大笑着驶过，三三两两吃完晚饭的人的闲聊声传进耳朵，你抬头看着有些黯淡的天色，春光明媚，可你却心头沉甸甸的，无心欣赏。</p>
+<p>你旁边的人突然停住了，你不解地回头，看他朝前指了指，说，我们比一比，看谁先到那个河堤的尽头，怎么样？</p>
+<p>可以是可以……你迟疑着点点头，不明白对方为什么突然想赛跑，但他看见你同意，就猛地跑了出去，你连忙去追，对方始终快你半步，你的余光里一直是他队服外套上忽上忽下的id，渐渐的，好像那身影也要融进夜色里。</p>
+<p>你终于跑到了河堤尽头，走上了上山坡的小路，今屿倚着栏杆喘粗气，手撑着膝盖，抬头看着你笑。</p>
+<p>之前我也和别人这样跑过，他说，不过当时是我一直没追上他。</p>
+<p>你没说话。</p>
+<p>我觉得无所谓，赛跑嘛，快一步慢一步的差别，他快了一步，那我追上就好了，不过是晚到了一点而已。</p>
+<p>你点点头。</p>
+<p>他指了指你们跑来的这条路，就像你这样，一直在身后跟啊跟，后来，连背影也看不见了，再后来，我跑到了另一条路上，连路标都没有了。</p>
+<p>你意识到他不是在说赛跑，想插嘴，但又忍住了。</p>
+<p>按照一般人的思维，他领着你往山坡上的小路走去，不管这条路有多长多远，只要在尽头画上记号，然后一直朝这个方向走，那就一定会到达的，对吗？</p>
+<p>理应如此，你说。</p>
+<p>是吧，他也笑了，我那时候也是这样想的，没有想过其他的结果，只要一直走，一直走，就没有理由到不了终点。</p>
+<p>可是后来我才发现，很多事，从发令枪响的那一刻就开始倒计时了，于是慢了一步，就步步都慢，翻盘的机会总是稍纵即逝，更多时候只能徒劳地看着眼前的影子，一次又一次，抓也抓不住，追也追不上，他说着，朝天空伸出手去，挥了挥，好像在抓月亮。</p>
+<p>比赛场上是不允许刻舟求剑的人存在的。他说完，似乎叹了口气，看看你，笑了一下，所以你一定要抓紧跑，一直跑，跑得比谁都快才行。</p>
+<p>你感觉喉咙发紧，连忙说你也是，对方沉默了很久，闷闷地笑了两声，说，当然，我也不会停下。</p>
+<p>你伸出手去，抓住了对方的手腕，深吸一口气，朝着看不见尽头的小径跑去，耳畔只听见呼啸的风声。</p>
+</div><p class="good">效果：主角压力 -18，队伍压力 -10，主角综合 +1，关系词条变为【并肩追风】。</p><button class="goodbtn full" onclick="closeModal();renderAll()">继续</button>`)}
+}
 
 function decayMateFavor(){state.team.forEach(m=>{if((m.interactionsThisCycle||0)<=0&&m.favor>50){m.favor=clamp(m.favor-2,0,100);addLog(`${m.name}这一轮没有和你互动，好感小幅下降。`)}m.interactedThisCycle=false;m.interactionsThisCycle=0})}
-function maybeCpEvents(){state.team.forEach((m,i)=>{if(m.id==='qingrong')return;if(m.favor>=50&&!m.warTriggered){m.warTriggered=true;showCpWar(i)}})}
+function maybeCpEvents(){state.team.forEach((m,i)=>{if(m.id==='qingrong'||m.id==='jinyu')return;if(m.favor>=50&&!m.warTriggered){m.warTriggered=true;showCpWar(i)}})}
 function showCpWar(i){let m=state.team[i];showModal(`<h2>CP粉与唯粉吵架</h2><p>你和${m.name}的互动越来越多，CP粉开始剪视频，唯粉觉得你被队友“吸血”。</p><div class="actions"><button class="action" onclick="supportMate(${i})">力挺队友<small>好感 +8，CP粉 +3000，唯粉/总粉小幅减少。</small></button><button class="action ghost" onclick="avoidCp(${i})">避而不谈<small>唯粉上升，CP粉减少，好感不变。</small></button></div>`) }
 window.supportMate=i=>{let m=state.team[i];closeModal();m.favor=clamp(m.favor+8,0,100);m.cpFans+=3000;changeFans(-1000);changeFame(2);addLog(`你公开力挺${m.name}：好感上升，CP粉增加，但部分唯粉离开。`);renderAll()}
 window.avoidCp=i=>{let m=state.team[i];closeModal();m.cpFans=Math.max(0,m.cpFans-1500);changeFans(1500);addLog(`你选择避而不谈：唯粉上涨，CP粉减少，${m.name}没有说什么。`);renderAll()}
@@ -288,8 +370,8 @@ function eliminate(reason){state.phase='ELIM';state.seasonEnd=true;addLog(reason
 function champion(){state.phase='CHAMP';state.seasonEnd=true;changeFans(50000);changeFame(20);addLog('你们拿下春季赛冠军。');showModal(`<h2 class="good">冠军结局</h2><p>最后一局结束，耳机里只剩队友的喊声。你们拿下了春季赛冠军。</p><button onclick="location.reload()">重新开始</button>`)}
 function runnerUp(){state.phase='RUNNER';state.seasonEnd=true;changeFans(18000);changeFame(8);addLog('你们输掉总决赛，获得亚军。');showModal(`<h2 class="warn">亚军结局</h2><p>你们走到了最后，但没能捧杯。这个春天停在亚军。</p>${defeatButtons()}`)}
 function scoreToDice(s){return clamp(Math.floor((s-35)/8),2,10)}function rollDice(n){let sum=0;for(let i=0;i<n;i++)sum+=rand(1,6);return sum}
-function renderTeam(){let box=$('teamList');box.innerHTML=state.team.map((m,i)=>{m.traits=m.traits||buildTraits(m.attrs,m.base);return `<div class="mate"><div class="mate-head"><div><div class="role">${m.role}</div><input class="nameMini" maxlength="5" value="${m.name}" onchange="updateMateName(${i},this.value)"/></div><div class="big">${effectiveMate(m)}</div></div><p class="small muted">原始综合 ${m.base}｜好感 ${m.favor}｜个人唯粉 ${fansText(m.soloFans)}</p><div class="attrGrid">${attrHtml(m.attrs,false)}</div><div class="bar pinkbar"><i style="width:${m.favor}%"></i></div><div class="tags">${m.traits.map(t=>`<span class="tag">${t}</span>`).join('')}${m.id==='qingrong'?`<span class="tag warnTag">稀有队友</span>`:''}${m.relationTitle?`<span class="tag purpletag">${m.relationTitle}</span>`:''}${m.cpUnlocked?`<span class="tag pinktag">CP词条</span><span class="tag purpletag">CP粉 ${fansText(m.cpFans)}</span>`:''}</div></div>`}).join('')}
-function renderRelations(){let gf=state.girlfriend?`<div class="subcard"><h3 class="pinkText">女友：${state.girlfriend.name}</h3><p>颜值 ${state.girlfriend.face}｜家境 ${state.girlfriend.family}｜生气 ${state.girlfriend.anger}/3｜本轮陪伴 ${state.gfCompanionThisCycle} 次</p></div>`:`<div class="subcard"><h3 class="muted">暂无女友</h3><p class="muted">选择“谈恋爱 / 陪女友”可进入择偶。</p></div>`;let cp=state.team.filter(m=>m.cpUnlocked||m.id==='qingrong').map(m=>`<div class="subcard"><b>${m.name}</b>${m.relationTitle?`<span class="tag purpletag" style="margin-left:6px">${m.relationTitle}</span>`:''}<p class="muted">好感 ${m.favor}｜CP粉 ${fansText(m.cpFans)}${m.id==='qingrong'?'｜事件：20/50/100':''}</p></div>`).join('')||'<p class="muted small">暂无 CP 词条。</p>';$('relationPanel').innerHTML=`${gf}<div class="sep"></div><h3>赛程目标</h3><p class="muted small">${currentGoalText()}</p><div class="sep"></div><h3>CP / 队友关系</h3>${cp}<div class="sep"></div><p class="small muted">有效养成指训练自己或与队友加练。连续两轮完全没有训练/加练，会让后续比赛分明显下降。</p>`}
+function renderTeam(){let box=$('teamList');box.innerHTML=state.team.map((m,i)=>{m.traits=m.traits||buildTraits(m.attrs,m.base);return `<div class="mate"><div class="mate-head"><div><div class="role">${m.role}</div><input class="nameMini" maxlength="5" value="${m.name}" onchange="updateMateName(${i},this.value)"/></div><div class="big">${effectiveMate(m)}</div></div><p class="small muted">原始综合 ${m.base}｜好感 ${m.favor}｜个人唯粉 ${fansText(m.soloFans)}</p><div class="attrGrid">${attrHtml(m.attrs,false)}</div><div class="bar pinkbar"><i style="width:${m.favor}%"></i></div><div class="tags">${m.traits.map(t=>`<span class="tag">${t}</span>`).join('')}${(m.id==='qingrong'||m.id==='jinyu')?`<span class="tag warnTag">稀有队友</span>`:''}${m.relationTitle?`<span class="tag purpletag">${m.relationTitle}</span>`:''}${m.cpUnlocked?`<span class="tag pinktag">CP词条</span><span class="tag purpletag">CP粉 ${fansText(m.cpFans)}</span>`:''}</div></div>`}).join('')}
+function renderRelations(){let gf=state.girlfriend?`<div class="subcard"><h3 class="pinkText">女友：${state.girlfriend.name}</h3><p>颜值 ${state.girlfriend.face}｜家境 ${state.girlfriend.family}｜生气 ${state.girlfriend.anger}/3｜本轮陪伴 ${state.gfCompanionThisCycle} 次</p></div>`:`<div class="subcard"><h3 class="muted">暂无女友</h3><p class="muted">选择“谈恋爱 / 陪女友”可进入择偶。</p></div>`;let cp=state.team.filter(m=>m.cpUnlocked||m.id==='qingrong'||m.id==='jinyu').map(m=>`<div class="subcard"><b>${m.name}</b>${m.relationTitle?`<span class="tag purpletag" style="margin-left:6px">${m.relationTitle}</span>`:''}<p class="muted">好感 ${m.favor}｜CP粉 ${fansText(m.cpFans)}${(m.id==='qingrong'||m.id==='jinyu')?'｜事件：20/50/100':''}</p></div>`).join('')||'<p class="muted small">暂无 CP 词条。</p>';$('relationPanel').innerHTML=`${gf}<div class="sep"></div><h3>赛程目标</h3><p class="muted small">${currentGoalText()}</p><div class="sep"></div><h3>CP / 队友关系</h3>${cp}<div class="sep"></div><p class="small muted">有效养成指训练自己或与队友加练。连续两轮完全没有训练/加练，会让后续比赛分明显下降。</p>`}
 function showBadEnd(){showModal(`<h2 class="bad">跑路 / 崩盘结局</h2><p>压力到达 100。你没有再出现在训练室。俱乐部公告写得很体面，但所有人都知道，你已经撑不下去了。</p>${defeatButtons()}`)}
 function hasOpenModal(){return !$('modal').classList.contains('hidden')}
 function queueStoryModal(html){
